@@ -19,7 +19,7 @@ struct Visit{
 	Visit(shared_ptr<Client> c, const string& d, const string& n) : client(c), date(d), notes(n) {}
 
 	void print() const {
-		cout << "Відвідування клієнта" << client->getName() << " | Дата: " << date << " | Нотатки: " << notes << endl;
+		cout << "Відвідування клієнта: " << client << " | Дата: " << date << " | Нотатки: " << notes << endl;
 	}
 
 };
@@ -157,7 +157,6 @@ int main()
 	cout << "До редагування:" << endl;
 	client->printVisits();
 
-	// Змінюємо дату першого відвідування
 	client->editVisitDate(0, "2025-11-02");
 	client->editVisitNotes(1, "Фітнес - зміна групи");
 
