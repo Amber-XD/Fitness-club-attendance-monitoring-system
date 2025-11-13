@@ -6,6 +6,7 @@
 #include <ctime>
 #include <vector>
 #include <memory>
+#include <algorithm>
 
 using namespace std;
 
@@ -18,9 +19,7 @@ struct Visit{
 	Visit() : client(nullptr), date(""), notes("") {}
 	Visit(shared_ptr<Client> c, const string& d, const string& n) : client(c), date(d), notes(n) {}
 
-	void print() const {
-		cout << "Відвідування клієнта: " << client << " | Дата: " << date << " | Нотатки: " << notes << endl;
-	}
+	void print() const;
 
 };
 
@@ -44,8 +43,15 @@ private:
 	tm expirationDate{};
 	bool active;
 	vector<Visit> visits;
+
+	void checkVisitIndex(size_t i) const {
+		if (i >= visits.size()) {
+			throw out_of_range("Неправильний індекс відвідування");
+		}
+	}
+
 public:
-	Client(string name, int id, string subType, tm expDate) : Person(name, id), subscriptionType(subType), expirationDate(expDate){
+	Client(string name, int id, string subType, tm expDate) : Person(name, id), subscriptionType(subType), expirationDate(expDate) {
 		active = checkStatus();
 	}
 
@@ -102,31 +108,27 @@ public:
 		visits.push_back(v);
 	}
 
-	
-
 	size_t getVisitsCount() const {
 		return visits.size();
 	}
 	
 	Visit& getVisit(size_t i) {
-		if (i >= visits.size()) {
-			throw out_of_range("Неправильний індекс відвідування");
-		}
+		checkVisitIndex(i);
 		return visits[i];
 	}
 
 	const Visit& getVisit(size_t i) const {
-		if (i >= visits.size()) {
-			throw out_of_range("Неправильний індекс відвідування");
-		}
+		checkVisitIndex(i);
 		return visits[i];
 	}
 
 	void editVisitDate(size_t i, const string& newDate) {
-		getVisit(i).date = newDate;
+		checkVisitIndex(i);
+		visits[i].date = newDate;
 	}
 	void editVisitNotes(size_t i, const string& newNotes) {
-		getVisit(i).notes = newNotes;
+		checkVisitIndex(i);
+		visits[i].notes = newNotes;
 	}
 
 	void printVisits() const {
@@ -137,31 +139,44 @@ public:
 	}
 };
 
+void Visit::print() const {
+	if (client) {
+		cout << "Відвідування клієнта: " << client->getName() << " | Дата: " << date << " | Нотатки: " << notes << endl;
+	}
+	else {
+		cout << "Відвідування (клієнт не вказаний) | Дата: " << date << " | Нотатки: " << notes << endl;
+	}
+}	
+
 int main()
 {
 	//cout << "Hello Viewer!" << endl;
 	SetConsoleOutputCP(1251);
+
+	vector<shared_ptr<Client>> clients;
 
 	tm exp = {};
 	exp.tm_year = 2025 - 1900;
 	exp.tm_mon = 11 - 1;
 	exp.tm_mday = 12;
 
-	auto client = make_shared<Client>("Anna", 1, "Premium", exp);
+	auto client1 = make_shared<Client>("Anna", 1, "Premium", exp);
+	clients.push_back(client1);
 
-	Visit v1(client, "2025-11-01", "Йога-зал");
-	Visit v2(client, "2025-11-05", "Фітнес");
-	client->addVisit(v1);
-	client->addVisit(v2);
+	auto client2 = make_shared<Client>("Ivan", 2, "Basic", exp);
+	clients.push_back(client2);
+
+	client1->addVisit(Visit(client1, "2025-11-01", "Йога-зал"));
+	client1->addVisit(Visit(client1, "2025-11-05", "Фітнес"));
 
 	cout << "До редагування:" << endl;
-	client->printVisits();
+	client1->printVisits();
 
-	client->editVisitDate(0, "2025-11-02");
-	client->editVisitNotes(1, "Фітнес - зміна групи");
+	client1->editVisitDate(0, "2025-11-02");
+	client1->editVisitNotes(1, "Фітнес - зміна групи");
 
 	cout << "\nПісля редагування:" << endl;
-	client->printVisits();
+	client1->printVisits();
 
 
 }
