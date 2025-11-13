@@ -39,105 +39,103 @@ public:
 
 class Client : public Person {
 private:
-	string subscriptionType;
-	tm expirationDate{};
-	bool active;
-	vector<Visit> visits;
+    string subscriptionType;
+    tm expirationDate{};
+    bool active;
+    vector<shared_ptr<Visit>> visits;
 
-	void checkVisitIndex(size_t i) const {
-		if (i >= visits.size()) {
-			throw out_of_range("Неправильний індекс відвідування");
-		}
-	}
+    void checkVisitIndex(size_t i) const {
+        if (i >= visits.size()) {
+            throw out_of_range("Неправильний індекс відвідування");
+        }
+    }
 
 public:
-	Client(string name, int id, string subType, tm expDate) : Person(name, id), subscriptionType(subType), expirationDate(expDate) {
-		active = checkStatus();
-	}
+    Client(string name, int id, string subType, tm expDate)
+        : Person(name, id), subscriptionType(subType), expirationDate(expDate) {
+        active = checkStatus();
+    }
 
-	Client(const Client& other) : Person(other.name, other.id), subscriptionType(other.subscriptionType), expirationDate(other.expirationDate), active(other.active), visits(other.visits) {}
+    Client(const Client& other)
+        : Person(other.name, other.id),
+        subscriptionType(other.subscriptionType),
+        expirationDate(other.expirationDate),
+        active(other.active),
+        visits(other.visits) {
+    }
 
-	bool isActive() const {
-		return active;
-	}
-	bool checkStatus() const {
-		time_t now = time(nullptr);
-		tm today{};
-		localtime_s(&today, &now);
-		if (mktime(const_cast<tm*>(&expirationDate)) < mktime(&today)) {
-			return false;
-		}
-		return true;
-	}
+    bool isActive() const { return active; }
 
-	void updateStatus() {
-		active = checkStatus();
-		if (!active) {
-			throw runtime_error("Абонемент прострочено!");
-		}
-	}
+    bool checkStatus() const {
+        time_t now = time(nullptr);
+        tm today{};
+        localtime_s(&today, &now);
+        return mktime(const_cast<tm*>(&expirationDate)) >= mktime(&today);
+    }
 
-	void printInfo() const override {
-		cout << "Client: " << name
-			<< " | ID: " << id
-			<< " | Type: " << subscriptionType
-			<< " | Status: " << (active ? "Active" : "Expired") << endl;
-	}
+    void updateStatus() {
+        active = checkStatus();
+        if (!active) {
+            throw runtime_error("Абонемент прострочено!");
+        }
+    }
 
-	bool operator<(const Client& other) const {
-		return name < other.name;
-	}
+    void printInfo() const override {
+        cout << "Client: " << name << " | ID: " << id << " | Type: " << subscriptionType << " | Status: " << (active ? "Active" : "Expired") << endl;
+    }
 
-	string getName() const {
-		return name;
-	}
-	int getID() const {
-		return id;
-	}
-	string getSubscriptionType() const {
-		return subscriptionType;
-	}
+    bool operator<(const Client& other) const {
+        return name < other.name;
+    }
 
-	void rename(const string& newName) {
-		if (newName != this->name) {
-			this->name = newName;
-		}
-	}
+    string getName() const {
+        return name;
+    }
 
-	void addVisit(const Visit& v) {
-		visits.push_back(v);
-	}
+    int getID() const {
+        return id;
+    }
 
-	size_t getVisitsCount() const {
-		return visits.size();
-	}
-	
-	Visit& getVisit(size_t i) {
-		checkVisitIndex(i);
-		return visits[i];
-	}
+    string getSubscriptionType() const {
+        return subscriptionType;
+    }
 
-	const Visit& getVisit(size_t i) const {
-		checkVisitIndex(i);
-		return visits[i];
-	}
+    void rename(const string& newName) {
+        if (newName != this->name) {
+            this->name = newName;
+        }
+    }
 
-	void editVisitDate(size_t i, const string& newDate) {
-		checkVisitIndex(i);
-		visits[i].date = newDate;
-	}
-	void editVisitNotes(size_t i, const string& newNotes) {
-		checkVisitIndex(i);
-		visits[i].notes = newNotes;
-	}
+    void addVisit(shared_ptr<Visit> v) {
+        visits.push_back(v);
+    }
 
-	void printVisits() const {
-		for (const auto& v : visits)
-		{
-			v.print();
-		}
-	}
+    size_t getVisitsCount() const {
+        return visits.size();
+    }
+
+    shared_ptr<Visit> getVisit(size_t i) const {
+        checkVisitIndex(i);
+        return visits[i];
+    }
+
+    void editVisitDate(size_t i, const string& newDate) {
+        checkVisitIndex(i);
+        visits[i]->date = newDate;
+    }
+
+    void editVisitNotes(size_t i, const string& newNotes) {
+        checkVisitIndex(i);
+        visits[i]->notes = newNotes;
+    }
+
+    void printVisits() const {
+        for (const auto& v : visits) {
+            if (v) v->print();
+        }
+    }
 };
+
 
 void Visit::print() const {
 	if (client) {
@@ -150,33 +148,40 @@ void Visit::print() const {
 
 int main()
 {
-	//cout << "Hello Viewer!" << endl;
-	SetConsoleOutputCP(1251);
+    //cout << "Hello Viewer!" << endl;
+    SetConsoleOutputCP(1251);
 
-	vector<shared_ptr<Client>> clients;
+    vector<shared_ptr<Client>> clients;
 
-	tm exp = {};
-	exp.tm_year = 2025 - 1900;
-	exp.tm_mon = 11 - 1;
-	exp.tm_mday = 12;
+    tm exp = {};
+    exp.tm_year = 2025 - 1900;
+    exp.tm_mon = 11 - 1;
+    exp.tm_mday = 12;
 
-	auto client1 = make_shared<Client>("Anna", 1, "Premium", exp);
-	clients.push_back(client1);
+    auto client1 = make_shared<Client>("Anna", 1, "Premium", exp);
+    auto client2 = make_shared<Client>("Ivan", 2, "Basic", exp);
 
-	auto client2 = make_shared<Client>("Ivan", 2, "Basic", exp);
-	clients.push_back(client2);
+    clients.push_back(client1);
+    clients.push_back(client2);
 
-	client1->addVisit(Visit(client1, "2025-11-01", "Йога-зал"));
-	client1->addVisit(Visit(client1, "2025-11-05", "Фітнес"));
+    auto visit1 = make_shared<Visit>(client1, "2025-11-01", "Йога-зал");
+    auto visit2 = make_shared<Visit>(client1, "2025-11-05", "Фітнес");
 
-	cout << "До редагування:" << endl;
-	client1->printVisits();
+    client1->addVisit(visit1);
+    client1->addVisit(visit2);
 
-	client1->editVisitDate(0, "2025-11-02");
-	client1->editVisitNotes(1, "Фітнес - зміна групи");
+    cout << "До редагування:" << endl;
+    client1->printVisits();
 
-	cout << "\nПісля редагування:" << endl;
-	client1->printVisits();
+    client1->editVisitDate(0, "2025-11-02");
+    client1->editVisitNotes(1, "Фітнес — зміна групи");
 
+    cout << "\nПісля редагування:" << endl;
+    client1->printVisits();
 
+    cout << "\nСтатуси клієнтів: " << endl;
+    for (const auto& c : clients) {
+        c->printInfo();
+    }
 }
+
