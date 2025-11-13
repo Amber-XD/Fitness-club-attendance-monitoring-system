@@ -6,6 +6,8 @@
 #include <ctime>
 #include <vector>
 #include <memory>
+#include <fstream>
+#include <sstream>
 #include <algorithm>
 
 using namespace std;
@@ -100,6 +102,10 @@ public:
         return subscriptionType;
     }
 
+    tm getExpirationDate() const {
+        return expirationDate;
+    }
+
     void rename(const string& newName) {
         if (newName != this->name) {
             this->name = newName;
@@ -134,8 +140,83 @@ public:
             if (v) v->print();
         }
     }
+
+
+
 };
 
+void saveClientToFile(const vector<shared_ptr<Client>>& clients, const string& filename) {
+        ofstream file(filename);
+        if (!file.is_open()) {
+            throw runtime_error("Не вдалося відкрити файл для запису");
+        }
+
+        for (const auto& c : clients) {
+            file << c->getID() << ";" << c->getName() << ";" << c->getSubscriptionType() << ";" << (1900 + c->getExpirationDate().tm_year) << '-' << (1 + c->getExpirationDate().tm_mon) << '-' << c->getExpirationDate().tm_mday << '\n';
+
+            file << c->getVisitsCount() << '\n';
+            for (size_t i = 0; i < c->getVisitsCount(); ++i) {
+                auto visit = c->getVisit(i);
+                file << visit->date << ";" << visit->notes << '\n';
+            }
+            file << "---\n";
+        }
+        file.close();
+        cout << "Дані клієнтів збережено у файл: " << filename << endl;
+
+    }
+
+    
+void loadClientFromFile (vector<shared_ptr<Client>>& clients, const string& filename) {
+        ifstream file(filename);
+
+        if (!file.is_open()) {
+            throw runtime_error("Не вдалося відкрити файл для читання");
+        }
+    
+        clients.clear();
+        string line;
+    
+        while (getline(file, line)) {
+            if (line.empty() || line == "---") {
+                continue;
+            }
+            stringstream ss(line);
+            string name, subType, dateStr;
+            int id;
+            tm exp{};
+    
+            getline(ss, name, ';');
+            ss >> id;
+            ss.ignore(1);
+            getline(ss, subType, ';');
+            getline(ss, dateStr, ';');
+    
+            sscanf_s(dateStr.c_str(), "%d-%d-%d", &exp.tm_year, &exp.tm_mon, &exp.tm_mday);
+            exp.tm_year -= 1900;
+            exp.tm_mon -= 1;
+    
+            auto c = make_shared<Client>(name, id, subType, exp);
+    
+            int visitCount = 0;
+            file >> visitCount;
+            file.ignore();
+    
+            for (int i = 0; i < visitCount; ++i) {
+                string visitLine;
+                getline(file, visitLine);
+                stringstream vs(visitLine);
+                string vdate, vnote;
+                getline(vs, vdate, ';');
+                getline(vs, vnote);
+                c->addVisit(make_shared<Visit>(c, vdate, vnote));
+            }
+    
+            clients.push_back(c);
+        }
+        file.close();
+        cout << "Дані клієнтів завантажено з файлу: " << filename << endl;
+    }
 
 void Visit::print() const {
 	if (client) {
@@ -164,6 +245,7 @@ int main()
     clients.push_back(client1);
     clients.push_back(client2);
 
+
     auto visit1 = make_shared<Visit>(client1, "2025-11-01", "Йога-зал");
     auto visit2 = make_shared<Visit>(client1, "2025-11-05", "Фітнес");
 
@@ -183,5 +265,8 @@ int main()
     for (const auto& c : clients) {
         c->printInfo();
     }
+
+	saveClientToFile(clients, "clients.txt");
+	loadClientFromFile(clients, "clients.txt");
 }
 
