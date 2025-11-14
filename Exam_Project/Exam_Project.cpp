@@ -317,6 +317,28 @@ vector<shared_ptr<Client>> searchCLients(const vector<shared_ptr<Client>>& clien
 
 }
 
+void sortByName(vector<shared_ptr<Client>>& clients) {
+    sort(clients.begin(), clients.end(), [](const shared_ptr<Client>& a, const shared_ptr<Client>& b) {
+        return a->getName() < b->getName();
+        });
+}
+
+void sortByID(vector<shared_ptr<Client>>& clients) {
+    sort(clients.begin(), clients.end(), [](const shared_ptr<Client>& a, const shared_ptr<Client>& b) {
+        return a->getID() < b->getID();
+		});
+}
+
+void sortByExpirationDate(vector<shared_ptr<Client>>& clients) {
+    sort(clients.begin(), clients.end(), [](const shared_ptr<Client>& a, const shared_ptr<Client>& b) {
+        tm ta = a->getExpirationDate();
+        tm tb = b->getExpirationDate();
+        return mktime(&ta) < mktime(&tb);
+        });
+
+}
+
+
 void Visit::print() const {
 	if (client) {
 		cout << "Відвідування клієнта: " << client->getName() << " | Дата: " << date << " | Нотатки: " << notes << endl;
@@ -374,5 +396,22 @@ int main()
         x->printInfo();
         x->printVisits();
     }
+
+	cout << "\nSorting by Name:\n";
+	sortByName(loadedClients);
+    for (auto& x : loadedClients) {
+        x->printInfo();
+	}
+	cout << "\nSorting by ID:\n";
+	sortByID(loadedClients);
+    for (auto& x : loadedClients) {
+        x->printInfo();
+	}
+	cout << "\nSorting by Expiration date:\n";
+	sortByExpirationDate(loadedClients);
+    for (auto& x : loadedClients) {
+        x->printInfo();
+	}
+
 }
 
