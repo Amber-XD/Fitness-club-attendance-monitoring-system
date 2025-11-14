@@ -12,6 +12,40 @@
 
 using namespace std;
 
+class Subscription {
+protected:
+    string type;
+public:
+    Subscription(const string& t) : type(t) {}
+
+    virtual ~Subscription() = default;
+
+    virtual string getType() const {
+        return type;
+    }
+
+    virtual void benefits() const {
+		cout << "Переваги загальної передплати" << endl;
+    }
+
+};
+
+class Basic : public Subscription {
+public:
+    Basic() : Subscription("Basic") {}
+    void benefits() const override {
+        cout << "Базова передплата: доступ тільки до тренажерного залу" << endl;
+	}
+};
+
+class Premium : public Subscription {
+public:
+    Premium() : Subscription("Premium") {}
+    void benefits() const override {
+        cout << "Преміум передплата: доступ до тренажерного залу, басейну та знижка на тренування з тренером" << endl;
+    }
+};
+
 class Client;
 
 struct Visit{
@@ -41,7 +75,7 @@ public:
 
 class Client : public Person {
 private:
-    string subscriptionType;
+    shared_ptr<Subscription> subscription;
     tm expirationDate{};
     bool active;
     vector<shared_ptr<Visit>> visits;
@@ -53,14 +87,14 @@ private:
     }
 
 public:
-    Client(string name, int id, string subType, tm expDate)
-        : Person(name, id), subscriptionType(subType), expirationDate(expDate) {
+    Client(string name, int id, shared_ptr<Subscription> subType, tm expDate)
+        : Person(name, id), subscription(subType), expirationDate(expDate) {
         active = checkStatus();
     }
 
     Client(const Client& other)
         : Person(other.name, other.id),
-        subscriptionType(other.subscriptionType),
+        subscription(other.subscription),
         expirationDate(other.expirationDate),
         active(other.active),
         visits(other.visits) {
@@ -95,7 +129,7 @@ public:
 	}
 
     friend ostream& operator<<(ostream& os, const Client& client) {
-        os << "Client: " << client.name << " | ID: " << client.id << " | Type: " << client.subscriptionType << " | Status: " << (client.active ? "Active" : "Expired");
+        os << "Client: " << client.name << " | ID: " << client.id << " | Type: " << client.subscription->getType() << " | Status: " << (client.active ? "Active" : "Expired");
         return os;
 	}
 
@@ -108,7 +142,7 @@ public:
     }
 
     string getSubscriptionType() const {
-        return subscriptionType;
+        return subscription->getType();
     }
 
     tm getExpirationDate() const {
@@ -250,8 +284,11 @@ void loadClientFromFile (vector<shared_ptr<Client>>& clients, const string& file
         sscanf_s(dateStr.c_str(), "%d-%d-%d", &exp.tm_year, &exp.tm_mon, &exp.tm_mday);
         exp.tm_year -= 1900;
         exp.tm_mon -= 1;
-
-        auto c = make_shared<Client>(name, id, subType, exp);
+        shared_ptr<Subscription> sub;
+        if (subType == "Basic") sub = make_shared<Basic>();
+        else if (subType == "Premium") sub = make_shared<Premium>();
+        else sub = make_shared<Subscription>(subType);  
+        auto c = make_shared<Client>(name, id, sub, exp);
 
         if (!getline(file, line)) break;
         int visitCount = stoi(line);
@@ -347,7 +384,6 @@ void sortByExpirationDate(vector<shared_ptr<Client>>& clients) {
 
 }
 
-
 void Visit::print() const {
 	if (client) {
 		cout << "Відвідування клієнта: " << client->getName() << " | Дата: " << date << " | Нотатки: " << notes << endl;
@@ -374,9 +410,9 @@ int main()
     sscanf_s("2025-10-10", "%d-%d-%d", &exp3.tm_year, &exp3.tm_mon, &exp3.tm_mday);
     exp3.tm_year -= 1900; exp3.tm_mon -= 1;
 
-    clients.push_back(make_shared<Client>("Tom", 1, "Premium", exp1));
-    clients.push_back(make_shared<Client>("Bob", 2, "Basic", exp2));
-    clients.push_back(make_shared<Client>("Thomas", 3, "Premium", exp3));
+    clients.push_back(make_shared<Client>("Tom", 1, make_shared<Premium>(), exp1));
+    clients.push_back(make_shared<Client>("Bob", 2, make_shared<Basic>(), exp2));
+    clients.push_back(make_shared<Client>("Thomas", 3, make_shared<Premium>(), exp3));
 
     clients[0]->addVisit(make_shared<Visit>(clients[0], "2025-12-05", "Gym"));
     clients[0]->addVisit(make_shared<Visit>(clients[0], "2025-12-07", "Yoga"));
