@@ -82,13 +82,22 @@ public:
         }
     }
 
-    void printInfo() const override {
+    /*void printInfo() const override {
         cout << "Client: " << name << " | ID: " << id << " | Type: " << subscriptionType << " | Status: " << (active ? "Active" : "Expired") << endl;
-    }
+    }*/
 
     bool operator<(const Client& other) const {
         return name < other.name;
     }
+
+    bool operator==(const Client& other) const {
+        return id == other.id;
+	}
+
+    friend ostream& operator<<(ostream& os, const Client& client) {
+        os << "Client: " << client.name << " | ID: " << client.id << " | Type: " << client.subscriptionType << " | Status: " << (client.active ? "Active" : "Expired");
+        return os;
+	}
 
     string getName() const {
         return name;
@@ -376,15 +385,15 @@ int main()
 
     cout << "Search by ID 1:\n";
     auto c = findClientByID(clients, 1);
-    if (c) cout << c->getName() << endl;
+    if (c) cout << *c << endl;
 
     cout << "\nSearch name 'Tom':\n";
     for (auto& x : findClientsByName(clients, "Tom"))
-        cout << x->getName() << endl;
+        cout << *x << endl;
 
     cout << "\nSearch pattern 'om':\n";
     for (auto& x : searchCLients(clients, "om"))
-        cout << x->getName() << endl;
+        cout << *x << endl;
 
     saveClientToFile(clients, "clients.txt");
 
@@ -393,24 +402,24 @@ int main()
 
     cout << "\nClients loaded from file:\n";
     for (auto& x : loadedClients) {
-        x->printInfo();
+        cout << *x << endl;
         x->printVisits();
     }
 
 	cout << "\nSorting by Name:\n";
 	sortByName(loadedClients);
     for (auto& x : loadedClients) {
-        x->printInfo();
+        cout << *x << endl;
 	}
 	cout << "\nSorting by ID:\n";
 	sortByID(loadedClients);
     for (auto& x : loadedClients) {
-        x->printInfo();
+        cout << *x << endl;
 	}
 	cout << "\nSorting by Expiration date:\n";
 	sortByExpirationDate(loadedClients);
     for (auto& x : loadedClients) {
-        x->printInfo();
+        cout << *x << endl;
 	}
 
 }
