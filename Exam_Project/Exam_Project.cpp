@@ -442,6 +442,19 @@ int main()
         x->printVisits();
     }
 
+    cout << "\nПеретворення типів ID: " << endl;
+	int origID = loadedClients[0]->getID();
+	cout << "Оригінальний ID: " << origID << endl;
+
+	double idDouble = static_cast<double>(origID);
+	cout << "double ID: " << idDouble << endl;
+
+	long idLong = static_cast<long>(idDouble);
+	cout << "long ID: " << idLong << endl;
+
+	int idInt = static_cast<int>(idDouble);
+	cout << "Повернутий int ID: " << idInt << endl;
+
 	cout << "\nSorting by Name:\n";
 	sortByName(loadedClients);
     for (auto& x : loadedClients) {
