@@ -9,6 +9,12 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <thread>
+#include <condition_variable>
+#include <mutex>
+#include <queue>
+#include <future>
+
 
 using namespace std;
 
@@ -393,6 +399,63 @@ void Visit::print() const {
 	}
 }	
 
+mutex logMutex;
+mutex clientMutex;
+condition_variable logCV;
+queue<string> logQueue;
+bool doneLogging = false;
+bool doneUpdating = false;
+
+void logThreadFunc() {
+	ofstream logFile("log.txt", ios::app);
+    if (!logFile.is_open()) {
+		cerr << "Не вдалося відкрити файл з логами" << endl;
+        return;
+    }
+
+	unique_lock<mutex> lock(logMutex);
+    while (!doneLogging || !logQueue.empty()) {
+        logCV.wait(lock, [] {
+            return !logQueue.empty() || doneLogging;
+            });
+		
+        while (!logQueue.empty()) {
+            string message = logQueue.front();
+			logQueue.pop();
+            lock.unlock();
+            logFile << message << endl;
+			lock.lock();
+        }
+    }
+
+    logFile.close();
+
+}
+
+void addLog(const string& message) {
+    {
+		lock_guard<mutex> lock(logMutex);
+		logQueue.push(message);
+    }
+	logCV.notify_one();
+}
+
+void updateClientStatusThread(vector<shared_ptr<Client>>& clients, int intervalSec) {
+    while (!doneUpdating) {
+		this_thread::sleep_for(chrono::seconds(intervalSec));
+
+		lock_guard<mutex> lock(clientMutex);
+        for (auto& c : clients) {
+            if (c->isActive()) {
+                addLog("Client " + c->getName() + " is active");
+            }
+            else {
+				addLog("Client " + c->getName() + " is expired");
+            }
+        }
+    }
+}
+
 int main()
 {
     //cout << "Hello Viewer!" << endl;
@@ -418,6 +481,10 @@ int main()
     clients[0]->addVisit(make_shared<Visit>(clients[0], "2025-12-07", "Yoga"));
 
     clients[1]->addVisit(make_shared<Visit>(clients[1], "2024-01-10", "Swimming"));
+
+	thread logThread(logThreadFunc);
+
+	thread updateThread(updateClientStatusThread, ref(clients), 5);
 
     cout << "Search by ID 1:\n";
     auto c = findClientByID(clients, 1);
@@ -453,7 +520,7 @@ int main()
 	cout << "long ID: " << idLong << endl;
 
 	int idInt = static_cast<int>(idDouble);
-	cout << "Повернутий int ID: " << idInt << endl;
+	cout << "Повернутий int ID: " << idInt << endl; 
 
 	cout << "\nSorting by Name:\n";
 	sortByName(loadedClients);
@@ -470,6 +537,16 @@ int main()
     for (auto& x : loadedClients) {
         cout << *x << endl;
 	}
+
+	this_thread::sleep_for(chrono::seconds(10));
+    {
+        lock_guard<mutex> lock(logMutex);
+        doneLogging = true;
+	}
+    logCV.notify_one();
+    logThread.join();
+	doneUpdating = true;
+    updateThread.join();
 
 }
 
