@@ -141,82 +141,181 @@ public:
         }
     }
 
+    shared_ptr<Client> findClientByID(const vector<shared_ptr<Client>>& clients, int id) {
 
+        for (const auto& c : clients) {
+            if (c->getID() == id) {
+                return c;
+            }
+        }
+
+        return nullptr;
+	}
+
+    vector<shared_ptr<Client>> findClientsByName(const vector<shared_ptr<Client>>& clients, const string& name) {
+
+		vector<shared_ptr<Client>> result;
+
+        for (auto& c : clients) {
+            if (c->getName() == name) {
+                result.push_back(c);
+            }
+		}
+
+		return result;
+    }
+
+    string toLower(string s) {
+        for (char& ch : s){
+            ch = tolower(ch);
+		}
+		return s;
+    }
+
+    vector<shared_ptr<Client>> searchCLients(const vector<shared_ptr<Client>>& clients, const string& pattern) {
+		
+        vector<shared_ptr<Client>> result;
+
+		string p = toLower(pattern);
+
+        for (auto& c : clients) {
+			string n = toLower(c->getName());
+            if (n.find(p) != string::npos) {
+                result.push_back(c);
+			}
+        }
+		return result;
+
+    }
 
 };
 
 void saveClientToFile(const vector<shared_ptr<Client>>& clients, const string& filename) {
-        ofstream file(filename);
-        if (!file.is_open()) {
-            throw runtime_error("Не вдалося відкрити файл для запису");
-        }
-
-        for (const auto& c : clients) {
-            file << c->getID() << ";" << c->getName() << ";" << c->getSubscriptionType() << ";" << (1900 + c->getExpirationDate().tm_year) << '-' << (1 + c->getExpirationDate().tm_mon) << '-' << c->getExpirationDate().tm_mday << '\n';
-
-            file << c->getVisitsCount() << '\n';
-            for (size_t i = 0; i < c->getVisitsCount(); ++i) {
-                auto visit = c->getVisit(i);
-                file << visit->date << ";" << visit->notes << '\n';
-            }
-            file << "---\n";
-        }
-        file.close();
-        cout << "Дані клієнтів збережено у файл: " << filename << endl;
-
+    ofstream file(filename);
+    if (!file.is_open()) {
+        throw runtime_error("Не вдалося відкрити файл для запису");
     }
+
+    for (const auto& c : clients) {
+        file << c->getName() << ";" << c->getID() << ";" << c->getSubscriptionType() << ";" << (1900 + c->getExpirationDate().tm_year) << '-' << (1 + c->getExpirationDate().tm_mon) << '-' << c->getExpirationDate().tm_mday << '\n';
+
+        file << c->getVisitsCount() << '\n';
+        for (size_t i = 0; i < c->getVisitsCount(); ++i) {
+            auto visit = c->getVisit(i);
+            file << visit->date << ";" << visit->notes << '\n';
+        }
+        file << "---\n";
+    }
+    file.close();
+    cout << "Дані клієнтів збережено у файл: " << filename << endl;
+
+}
 
     
 void loadClientFromFile (vector<shared_ptr<Client>>& clients, const string& filename) {
-        ifstream file(filename);
+    ifstream file(filename);
 
-        if (!file.is_open()) {
-            throw runtime_error("Не вдалося відкрити файл для читання");
-        }
-    
-        clients.clear();
-        string line;
-    
-        while (getline(file, line)) {
-            if (line.empty() || line == "---") {
-                continue;
-            }
-            stringstream ss(line);
-            string name, subType, dateStr;
-            int id;
-            tm exp{};
-    
-            getline(ss, name, ';');
-            ss >> id;
-            ss.ignore(1);
-            getline(ss, subType, ';');
-            getline(ss, dateStr, ';');
-    
-            sscanf_s(dateStr.c_str(), "%d-%d-%d", &exp.tm_year, &exp.tm_mon, &exp.tm_mday);
-            exp.tm_year -= 1900;
-            exp.tm_mon -= 1;
-    
-            auto c = make_shared<Client>(name, id, subType, exp);
-    
-            int visitCount = 0;
-            file >> visitCount;
-            file.ignore();
-    
-            for (int i = 0; i < visitCount; ++i) {
-                string visitLine;
-                getline(file, visitLine);
-                stringstream vs(visitLine);
-                string vdate, vnote;
-                getline(vs, vdate, ';');
-                getline(vs, vnote);
-                c->addVisit(make_shared<Visit>(c, vdate, vnote));
-            }
-    
-            clients.push_back(c);
-        }
-        file.close();
-        cout << "Дані клієнтів завантажено з файлу: " << filename << endl;
+    if (!file.is_open()) {
+        throw runtime_error("Не вдалося відкрити файл для читання");
     }
+
+    clients.clear();
+    string line;
+
+    while (getline(file, line)) {
+        if (line.empty() || line == "---") {
+            continue;
+        }
+
+        stringstream ss(line);
+        string name, idStr, subType, dateStr;
+
+        getline(ss, name, ';');
+        getline(ss, idStr, ';');
+        getline(ss, subType, ';');
+        getline(ss, dateStr, ';');
+
+		int id = stoi(idStr);
+        tm exp{};
+
+        sscanf_s(dateStr.c_str(), "%d-%d-%d", &exp.tm_year, &exp.tm_mon, &exp.tm_mday);
+        exp.tm_year -= 1900;
+        exp.tm_mon -= 1;
+
+        auto c = make_shared<Client>(name, id, subType, exp);
+
+        if (!getline(file, line)) break;
+        int visitCount = stoi(line);
+
+        for (int i = 0; i < visitCount; ++i) {
+            string visitLine;
+
+            getline(file, visitLine);
+
+            stringstream vs(visitLine);
+            string vdate, vnote;
+
+            getline(vs, vdate, ';');
+            getline(vs, vnote);
+
+            c->addVisit(make_shared<Visit>(c, vdate, vnote));
+        }
+        
+		getline(file, line);
+
+        clients.push_back(c);
+    }
+    file.close();
+    cout << "Дані клієнтів завантажено з файлу: " << filename << endl;
+}
+
+
+shared_ptr<Client> findClientByID(const vector<shared_ptr<Client>>& clients, int id) {
+
+    for (const auto& c : clients) {
+        if (c->getID() == id) {
+            return c;
+        }
+    }
+
+    return nullptr;
+}
+
+vector<shared_ptr<Client>> findClientsByName(const vector<shared_ptr<Client>>& clients, const string& name) {
+
+    vector<shared_ptr<Client>> result;
+
+    for (auto& c : clients) {
+        if (c->getName() == name) {
+            result.push_back(c);
+        }
+    }
+
+    return result;
+}
+
+string toLower(string s) {
+    for (char& ch : s) {
+        ch = tolower(ch);
+    }
+    return s;
+}
+
+vector<shared_ptr<Client>> searchCLients(const vector<shared_ptr<Client>>& clients, const string& pattern) {
+
+    vector<shared_ptr<Client>> result;
+
+    string p = toLower(pattern);
+
+    for (auto& c : clients) {
+        string n = toLower(c->getName());
+        if (n.find(p) != string::npos) {
+            result.push_back(c);
+        }
+    }
+    return result;
+
+}
 
 void Visit::print() const {
 	if (client) {
@@ -234,39 +333,46 @@ int main()
 
     vector<shared_ptr<Client>> clients;
 
-    tm exp = {};
-    exp.tm_year = 2025 - 1900;
-    exp.tm_mon = 11 - 1;
-    exp.tm_mday = 12;
+    tm exp1{}, exp2{}, exp3{};
+    sscanf_s("2025-12-01", "%d-%d-%d", &exp1.tm_year, &exp1.tm_mon, &exp1.tm_mday);
+    exp1.tm_year -= 1900; exp1.tm_mon -= 1;
 
-    auto client1 = make_shared<Client>("Anna", 1, "Premium", exp);
-    auto client2 = make_shared<Client>("Ivan", 2, "Basic", exp);
+    sscanf_s("2024-01-01", "%d-%d-%d", &exp2.tm_year, &exp2.tm_mon, &exp2.tm_mday);
+    exp2.tm_year -= 1900; exp2.tm_mon -= 1;
 
-    clients.push_back(client1);
-    clients.push_back(client2);
+    sscanf_s("2025-10-10", "%d-%d-%d", &exp3.tm_year, &exp3.tm_mon, &exp3.tm_mday);
+    exp3.tm_year -= 1900; exp3.tm_mon -= 1;
 
+    clients.push_back(make_shared<Client>("Tom", 1, "Premium", exp1));
+    clients.push_back(make_shared<Client>("Bob", 2, "Basic", exp2));
+    clients.push_back(make_shared<Client>("Thomas", 3, "Premium", exp3));
 
-    auto visit1 = make_shared<Visit>(client1, "2025-11-01", "Йога-зал");
-    auto visit2 = make_shared<Visit>(client1, "2025-11-05", "Фітнес");
+    clients[0]->addVisit(make_shared<Visit>(clients[0], "2025-12-05", "Gym"));
+    clients[0]->addVisit(make_shared<Visit>(clients[0], "2025-12-07", "Yoga"));
 
-    client1->addVisit(visit1);
-    client1->addVisit(visit2);
+    clients[1]->addVisit(make_shared<Visit>(clients[1], "2024-01-10", "Swimming"));
 
-    cout << "До редагування:" << endl;
-    client1->printVisits();
+    cout << "Search by ID 1:\n";
+    auto c = findClientByID(clients, 1);
+    if (c) cout << c->getName() << endl;
 
-    client1->editVisitDate(0, "2025-11-02");
-    client1->editVisitNotes(1, "Фітнес — зміна групи");
+    cout << "\nSearch name 'Tom':\n";
+    for (auto& x : findClientsByName(clients, "Tom"))
+        cout << x->getName() << endl;
 
-    cout << "\nПісля редагування:" << endl;
-    client1->printVisits();
+    cout << "\nSearch pattern 'om':\n";
+    for (auto& x : searchCLients(clients, "om"))
+        cout << x->getName() << endl;
 
-    cout << "\nСтатуси клієнтів: " << endl;
-    for (const auto& c : clients) {
-        c->printInfo();
+    saveClientToFile(clients, "clients.txt");
+
+    vector<shared_ptr<Client>> loadedClients;
+    loadClientFromFile(loadedClients, "clients.txt");
+
+    cout << "\nClients loaded from file:\n";
+    for (auto& x : loadedClients) {
+        x->printInfo();
+        x->printVisits();
     }
-
-	saveClientToFile(clients, "clients.txt");
-	loadClientFromFile(clients, "clients.txt");
 }
 
