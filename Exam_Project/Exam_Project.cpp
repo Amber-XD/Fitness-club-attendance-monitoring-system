@@ -131,11 +131,11 @@ public:
 	}
 
 	bool operator==(const Client& other) const {
-		return static_cast<int>(id) == static_cast<int>(other.id);
+		return id == other.id;
 	}
 
 	friend ostream& operator<<(ostream& os, const Client& client) {
-		os << "Client: " << client.name << " | ID: " << static_cast<int>(client.id) << " | Type: " << client.subscription->getType() << " | Status: " << (client.active ? "Active" : "Expired");
+		os << "Client: " << client.name << " | ID: " << client.id << " | Type: " << (client.subscription ? client.subscription->getType() : "No Subscription") << " | Status: " << (client.active ? "Active" : "Expired");
 		return os;
 	}
 
@@ -190,161 +190,142 @@ public:
 		}
 	}
 
-	shared_ptr<Client> findClientByID(const vector<shared_ptr<Client>>& clients, int id) {
+};
 
-		for (const auto& c : clients) {
-			if (static_cast<int>(c->getID()) == static_cast<int>(id)) {
-				return c;
-			}
+template<typename T>
+class Repository {
+private:
+	vector<shared_ptr<T>> items;
+
+public:
+	void add(const shared_ptr<T>& item) {
+		items.push_back(item);
+	}
+
+	size_t size() const { 
+		return items.size();
+	}
+
+	const vector<shared_ptr<T>>& getAll() const {
+		return items;
+	}
+
+	shared_ptr<T> findByID(int id) const {
+		for (auto& item : items) {
+			if (item->getID() == id) return item;
 		}
-
 		return nullptr;
 	}
 
-	vector<shared_ptr<Client>> findClientsByName(const vector<shared_ptr<Client>>& clients, const string& name) {
-
-		vector<shared_ptr<Client>> result;
-
-		for (auto& c : clients) {
-			if (c->getName() == name) {
-				result.push_back(c);
-			}
-		}
-
-		return result;
-	}
-
-	string toLower(string s) {
-		for (char& ch : s) {
-			ch = tolower(ch);
-		}
-		return s;
-	}
-
-	vector<shared_ptr<Client>> searchCLients(const vector<shared_ptr<Client>>& clients, const string& pattern) {
-
-		vector<shared_ptr<Client>> result;
-
-		string p = toLower(pattern);
-
-		for (auto& c : clients) {
-			string n = toLower(c->getName());
-			if (n.find(p) != string::npos) {
-				result.push_back(c);
-			}
+	vector<shared_ptr<T>> findByName(const string& name) const {
+		vector<shared_ptr<T>> result;
+		for (auto& item : items) {
+			if (item->getName() == name) result.push_back(item);
 		}
 		return result;
-
 	}
+
+	void sortByName() {
+		sort(items.begin(), items.end(), [](const shared_ptr<T>& a, const shared_ptr<T>& b) {
+			return a->getName() < b->getName();
+			});
+	}
+
+	void sortByID() {
+		sort(items.begin(), items.end(), [](const shared_ptr<T>& a, const shared_ptr<T>& b) {
+			return a->getID() < b->getID();
+			});
+	}
+
+	void sortByExpirationDate() {
+		sort(items.begin(), items.end(), [](const shared_ptr<T>& a, const shared_ptr<T>& b) {
+			tm ta = a->getExpirationDate();
+			tm tb = b->getExpirationDate();
+			return mktime(&ta) < mktime(&tb);
+			});
+	}
+
+	void saveToFile(const string& filename) const {
+		ofstream file(filename);
+		if (!file.is_open()) throw runtime_error("Failed to open file for writing");
+
+		for (const auto& c : items) {
+			file << c->getName() << ";"
+				<< c->getID() << ";"
+				<< c->getSubscriptionType() << ";"
+				<< (1900 + c->getExpirationDate().tm_year) << '-'
+				<< (1 + c->getExpirationDate().tm_mon) << '-'
+				<< c->getExpirationDate().tm_mday << '\n';
+
+			file << c->getVisitsCount() << '\n';
+			for (size_t i = 0; i < c->getVisitsCount(); ++i) {
+				auto visit = c->getVisit(i);
+				file << visit->date << ";" << visit->notes << '\n';
+			}
+			file << "---\n";
+		}
+
+		file.close();
+		cout << "Client data is saved to the file: " << filename << endl;
+	}
+
+	void loadFromFile(const string& filename) {
+		ifstream file(filename);
+		if (!file.is_open()) throw runtime_error("Failed to open file for reading");
+
+		items.clear();
+		string line;
+
+		while (getline(file, line)) {
+			if (line.empty() || line == "---") continue;
+
+			stringstream ss(line);
+			string name, idStr, subType, dateStr;
+
+			getline(ss, name, ';');
+			getline(ss, idStr, ';');
+			getline(ss, subType, ';');
+			getline(ss, dateStr, ';');
+
+			int id = stoi(idStr);
+			tm exp{};
+			sscanf_s(dateStr.c_str(), "%d-%d-%d", &exp.tm_year, &exp.tm_mon, &exp.tm_mday);
+			exp.tm_year -= 1900;
+			exp.tm_mon -= 1;
+
+			shared_ptr<Subscription> sub;
+			if (subType == "Basic") sub = make_shared<Basic>();
+			else if (subType == "Premium") sub = make_shared<Premium>();
+			else sub = make_shared<Subscription>(subType);
+
+			auto c = make_shared<Client>(name, id, sub, exp);
+
+			if (!getline(file, line)) break;
+			int visitCount = stoi(line);
+
+			for (int i = 0; i < visitCount; ++i) {
+				string visitLine;
+				getline(file, visitLine);
+
+				stringstream vs(visitLine);
+				string vdate, vnote;
+
+				getline(vs, vdate, ';');
+				getline(vs, vnote);
+
+				c->addVisit(make_shared<Visit>(c, vdate, vnote));
+			}
+
+			getline(file, line);
+			items.push_back(c);
+		}
+
+		file.close();
+		cout << "Client data loaded from file: " << filename << endl;
+	}
+
 
 };
-
-void saveClientToFile(const vector<shared_ptr<Client>>& clients, const string& filename) {
-	ofstream file(filename);
-	if (!file.is_open()) {
-		throw runtime_error("Failed to open file for writing");
-	}
-
-	for (const auto& c : clients) {
-		file << c->getName() << ";" << c->getID() << ";" << c->getSubscriptionType() << ";" << (1900 + c->getExpirationDate().tm_year) << '-' << (1 + c->getExpirationDate().tm_mon) << '-' << c->getExpirationDate().tm_mday << '\n';
-
-		file << c->getVisitsCount() << '\n';
-		for (size_t i = 0; i < c->getVisitsCount(); ++i) {
-			auto visit = c->getVisit(i);
-			file << visit->date << ";" << visit->notes << '\n';
-		}
-		file << "---\n";
-	}
-	file.close();
-	cout << "Client data is saved to the file: " << filename << endl;
-
-}
-
-
-void loadClientFromFile(vector<shared_ptr<Client>>& clients, const string& filename) {
-	ifstream file(filename);
-
-	if (!file.is_open()) {
-		throw runtime_error("Failed to open the file for reading");
-	}
-
-	clients.clear();
-	string line;
-
-	while (getline(file, line)) {
-		if (line.empty() || line == "---") {
-			continue;
-		}
-
-		stringstream ss(line);
-		string name, idStr, subType, dateStr;
-
-		getline(ss, name, ';');
-		getline(ss, idStr, ';');
-		getline(ss, subType, ';');
-		getline(ss, dateStr, ';');
-
-		int id = stoi(idStr);
-		tm exp{};
-
-		sscanf_s(dateStr.c_str(), "%d-%d-%d", &exp.tm_year, &exp.tm_mon, &exp.tm_mday);
-		exp.tm_year -= 1900;
-		exp.tm_mon -= 1;
-		shared_ptr<Subscription> sub;
-		if (subType == "Basic") sub = make_shared<Basic>();
-		else if (subType == "Premium") sub = make_shared<Premium>();
-		else sub = make_shared<Subscription>(subType);
-		auto c = make_shared<Client>(name, id, sub, exp);
-
-		if (!getline(file, line)) break;
-		int visitCount = stoi(line);
-
-		for (int i = 0; i < visitCount; ++i) {
-			string visitLine;
-
-			getline(file, visitLine);
-
-			stringstream vs(visitLine);
-			string vdate, vnote;
-
-			getline(vs, vdate, ';');
-			getline(vs, vnote);
-
-			c->addVisit(make_shared<Visit>(c, vdate, vnote));
-		}
-
-		getline(file, line);
-
-		clients.push_back(c);
-	}
-	file.close();
-	cout << "Client data loaded from file: " << filename << endl;
-}
-
-
-shared_ptr<Client> findClientByID(const vector<shared_ptr<Client>>& clients, int id) {
-
-	for (const auto& c : clients) {
-		if (c->getID() == id) {
-			return c;
-		}
-	}
-
-	return nullptr;
-}
-
-vector<shared_ptr<Client>> findClientsByName(const vector<shared_ptr<Client>>& clients, const string& name) {
-
-	vector<shared_ptr<Client>> result;
-
-	for (auto& c : clients) {
-		if (c->getName() == name) {
-			result.push_back(c);
-		}
-	}
-
-	return result;
-}
 
 string toLower(string s) {
 	for (char& ch : s) {
@@ -353,7 +334,7 @@ string toLower(string s) {
 	return s;
 }
 
-vector<shared_ptr<Client>> searchCLients(const vector<shared_ptr<Client>>& clients, const string& pattern) {
+vector<shared_ptr<Client>> searchClients(const vector<shared_ptr<Client>>& clients, const string& pattern) {
 
 	vector<shared_ptr<Client>> result;
 
@@ -366,27 +347,6 @@ vector<shared_ptr<Client>> searchCLients(const vector<shared_ptr<Client>>& clien
 		}
 	}
 	return result;
-
-}
-
-void sortByName(vector<shared_ptr<Client>>& clients) {
-	sort(clients.begin(), clients.end(), [](const shared_ptr<Client>& a, const shared_ptr<Client>& b) {
-		return a->getName() < b->getName();
-		});
-}
-
-void sortByID(vector<shared_ptr<Client>>& clients) {
-	sort(clients.begin(), clients.end(), [](const shared_ptr<Client>& a, const shared_ptr<Client>& b) {
-		return a->getID() < b->getID();
-		});
-}
-
-void sortByExpirationDate(vector<shared_ptr<Client>>& clients) {
-	sort(clients.begin(), clients.end(), [](const shared_ptr<Client>& a, const shared_ptr<Client>& b) {
-		tm ta = a->getExpirationDate();
-		tm tb = b->getExpirationDate();
-		return mktime(&ta) < mktime(&tb);
-		});
 
 }
 
@@ -493,10 +453,26 @@ int main()
 	//cout << "Hello Viewer!" << endl;
 	SetConsoleOutputCP(1251);
 	try {
-		vector<shared_ptr<Client>> clients;
+		//vector<shared_ptr<Client>> clients;
+		Repository<Client> repos;
 
 		thread logThread(logThreadFunc);
-		thread updateThread(updateClientStatusThread, ref(clients), 5);
+		thread updateThread([&repos]() {
+			while (!doneUpdating) {
+				this_thread::sleep_for(chrono::seconds(5));
+				lock_guard<mutex> lock(clientMutex);
+				for (auto& c : repos.getAll()) {
+					try {
+						c->updateStatus();
+						addLog("Client " + c->getName() + " is active");
+					}
+					catch (const exception& e) {
+						addLog("Client " + c->getName() + " status check: " + string(e.what()));
+					}
+				}
+			}
+			});
+
 
 		bool running = true;
 
@@ -531,7 +507,7 @@ int main()
 						cout << "Enter client ID: ";
 						cin >> id;
 
-						if (findClientByID(clients, id)) {
+						if (repos.findByID(id)) {
 							throw runtime_error("This ID is aready used");
 						}
 
@@ -580,7 +556,7 @@ int main()
 
 						auto c = make_shared<Client>(name, id, sub, exp);
 
-						clients.push_back(c);
+						repos.add(c);
 						addLog("Added client: " + name + " with ID: " + to_string(id));
 
 						cout << "Client added successfully" << endl;
@@ -591,6 +567,7 @@ int main()
 					break;
 				}
 				case 2: {
+					const auto& clients = repos.getAll();
 					if (clients.empty()) {
 						cout << "No clients available" << endl;
 						break;
@@ -605,8 +582,9 @@ int main()
 					break;
 				}
 				case 3: {
+					const auto& clients = repos.getAll();
 					try {
-						saveClientToFile(clients, "clients.txt");
+						repos.saveToFile("clients.txt");
 						addLog("Clients saved to file");
 					}
 					catch (const exception& e) {
@@ -616,7 +594,7 @@ int main()
 				}
 				case 4: {
 					try {
-						loadClientFromFile(clients, "clients.txt");
+						repos.loadFromFile("clients.txt");
 						addLog("Clients loaded from file");
 					}
 					catch (const exception& e) {
@@ -626,6 +604,7 @@ int main()
 					break;
 				}
 				case 5: {
+					const auto& clients = repos.getAll();
 					if (clients.empty()) {
 						cout << "No clients available\n";
 						break;
@@ -633,7 +612,7 @@ int main()
 					int id;
 					cout << "Enter client ID for visit: ";
 					cin >> id;
-					auto client = findClientByID(clients, id);
+					auto client = repos.findByID(id);
 					if (!client) {
 						cout << "Client not found\n";
 						break;
@@ -647,9 +626,8 @@ int main()
 							throw runtime_error("Invalid date format: only digits and '-' allowed");
 						}
 					}
-					cin.ignore();
-					cout << "Enter visit notes: ";
 					cin.ignore(numeric_limits<streamsize>::max(), '\n');
+					cout << "Enter visit notes: ";
 					getline(cin, vnote);
 					if (!isValidEnglishInput(vnote)) {
 						throw runtime_error("Invalid input: Only English letters, digits, dash, underscore, and space allowed");
@@ -681,7 +659,7 @@ int main()
 					int id;
 					cout << "Enter client ID to search: ";
 					cin >> id;
-					auto client = findClientByID(clients, id);
+					auto client = repos.findByID(id);
 					if (client) {
 						cout << *client << endl;
 						client->printVisits();
@@ -696,7 +674,7 @@ int main()
 					string name;
 					cout << "Enter client name to search: ";
 					cin >> name;
-					auto results = searchCLients(clients, name);
+					auto results = searchClients(repos.getAll(), name);
 					if (!results.empty()) {
 						for (auto& c : results) {
 							cout << *c << endl;
@@ -715,15 +693,15 @@ int main()
 					cin >> sortChoice;
 					switch (sortChoice) {
 						case 1: {
-							sortByName(clients);
+							repos.sortByName();
 							break;
 						}
 						case 2: {
-							sortByID(clients);
+							repos.sortByID();
 							break;
 						}
 						case 3: {
-							sortByExpirationDate(clients);
+							repos.sortByExpirationDate();
 							break;
 						}
 						default: {
@@ -739,7 +717,8 @@ int main()
 					break;
 				}
 				default:
-					cout << "Invalid choice. Please try again" << endl;
+					cout << "Invalid choice. Please try again\n";
+					break;
 				}
 			}
 			catch (const exception& e) {
@@ -754,8 +733,8 @@ int main()
 
 		logCV.notify_one();
 		logThread.join();
-		doneUpdating = true;
 		updateThread.join();
+		doneUpdating = true;
 	}
 	catch (const exception& e) {
 		cerr << "Fatal error: " << e.what() << endl;
@@ -765,4 +744,3 @@ int main()
 	}
 
 }
-
